@@ -1,5 +1,3 @@
-Shreys-MacBook-Air:OCSP shrey$ vim ocsp_fetcher
-
 #!/bin/bash
 set -eu
 
