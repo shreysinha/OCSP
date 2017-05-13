@@ -1,0 +1,27 @@
+Shreys-MacBook-Air:OCSP shrey$ vim ocsp_fetcher
+
+#!/bin/bash
+set -eu
+
+openssl s_client -connect $1:443 -showcerts 2>&1 < /dev/null | sed -n '/-----BEGIN/,/-----END/p' > ca_temp.pem
+openssl s_client -connect $1:443 2>&1 < /dev/null | sed -n '/-----BEGIN/,/-----END/p' > certificate.pem
+count_certs=`cat ca_temp.pem  | grep -n "BEGIN CERTIFICATE" | wc -l`
+
+if [ $count_certs -lt 2 ]; then
+    begin_ca=`cat ca_temp.pem  | grep -n "BEGIN CERTIFICATE"  | tail -1 | cut -d':' -f1`
+    end_ca=`cat ca_temp.pem  | grep -n "END CERTIFICATE"  | tail -1 | cut -d':' -f1`
+else
+    begin_ca=`cat ca_temp.pem  | grep -n "BEGIN CERTIFICATE"  | head -2 | tail -1 | cut -d':' -f1`
+    end_ca=`cat ca_temp.pem  | grep -n "END CERTIFICATE"  | head -2 | tail -1 | cut -d':' -f1`
+fi
+
+awk "NR >= $begin_ca && NR <= $end_ca" ca_temp.pem > ca.pem
+
+ocsp_uri=`openssl x509 -noout -ocsp_uri -in certificate.pem`
+ocsp_host=`echo $ocsp_uri | awk -F/ '{print $3}'`
+
+
+status=`openssl ocsp -issuer ca.pem -cert certificate.pem -text -url "$ocsp_uri" 2>&1 < /dev/null -header "HOST" "$ocsp_host" | grep "certificate.pem" | sed 's/certificate\.pem:\ //g'`
+rm ca_temp.pem certificate.pem ca.pem
+echo "OCSP URI: $ocsp_uri"
+echo "OCSP status: ${status^}"
